@@ -8,7 +8,9 @@ OPTFLAGS=-O3
 CXXFLAGS=-Wall -I/usr/local/include/boost_1_46_1 -fPIC $(OPTFLAGS)
 CFLAGS=-Wall -Ifft -fPIC $(OPTFLAGS)
 ifeq ($(UNAME),Darwin)
-	LDFLAGS=-L/usr/local/lib libtag-$(PLATFORM)-$(ARCH).a -lz -lpthread -framework Accelerate -framework vecLib $(OPTFLAGS)
+	CXXFLAGS+=-arch i386
+	CFLAGS+=-arch i386
+	LDFLAGS=-arch i386 -L/usr/local/lib -lpthread -framework Accelerate -framework vecLib $(OPTFLAGS)
 endif
 
 ifeq ($(UNAME),MINGW32_NT-6.1)
@@ -35,9 +37,9 @@ MODULES_LIB = \
 MODULES = $(MODULES_LIB)
 
 main: $(MODULES) main.o
-	$(CXX) $(MODULES) $(LDFLAGS) main.o -o codegen.$(PLATFORM)-$(ARCH) 
+	$(CXX) $(MODULES) $(LDFLAGS) main.o -o codegen.$(PLATFORM)-$(ARCH)
 ifeq ($(UNAME),Darwin)
-	$(CXX) -shared -fPIC -o libcodegen.$(PLATFORM)-$(ARCH).so $(MODULES_LIB) -framework Accelerate -framework vecLib
+	$(CXX) -arch i386 -shared -fPIC -o libcodegen.$(PLATFORM)-$(ARCH).so $(MODULES_LIB) -framework Accelerate -framework vecLib
 	libtool -dynamic -flat_namespace -install_name libcodegen.4.0.0.dylib -lSystem -compatibility_version 4.0 -macosx_version_min 10.6 \
 	    -current_version 4.0.0 -o libcodegen.4.0.0.dylib -undefined suppress \
 	    $(MODULES) -framework vecLib -framework Accelerate
