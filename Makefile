@@ -1,6 +1,7 @@
 UNAME := $(shell uname -s)
 CXX=g++
 CC=gcc
+AR=ar
 PLATFORM=`uname`
 ARCH=`uname -m`
 #OPTFLAGS=-g -O0
@@ -47,6 +48,7 @@ endif
 
 ifeq ($(UNAME),MINGW32_NT-6.1)
 	$(CXX) -shared -fPIC -o codegen.dll $(MODULES_LIB)
+	$(AR) rc codegen.lib $(MODULES_LIB)
 endif
 
 ifeq ($(UNAME),Linux)
