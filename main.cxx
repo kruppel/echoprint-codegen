@@ -13,7 +13,6 @@
 #include <stdexcept>
 
 #include "AudioStreamInput.h"
-#include "Metadata.h"
 #include "Codegen.h"
 #include <string>
 #define MAX_FILES 200000
@@ -128,23 +127,14 @@ char* json_string_for_file(char* filename, int start_offset, int duration, int t
     t2 = now() - t2;
 
     // Get the ID3 tag information.
-    auto_ptr<Metadata> pMetadata(new Metadata(filename));
+    //auto_ptr<Metadata> pMetadata(new Metadata(filename));
 
     // preamble + codelen
     char* output = (char*) malloc(sizeof(char)*(16384 + strlen(pCodegen->getFullCodeString().c_str()) + strlen(pCodegen->getLowRankCodeString().c_str()) ));
     
-    sprintf(output,"{\"metadata\":{\"artist\":\"%s\", \"release\":\"%s\", \"title\":\"%s\", \"genre\":\"%s\", \"bitrate\":%d,"
-                    "\"sample_rate\":%d, \"duration\":%d, \"filename\":\"%s\", \"samples_decoded\":%d, \"given_duration\":%d,"
+    sprintf(output,"{\"samples_decoded\":%d, \"given_duration\":%d,"
                     " \"start_offset\":%d, \"version\":%2.2f, \"codegen_time\":%2.6f, \"decode_time\":%2.6f}, \"code_count\":%d,"
                     " \"code\":\"%s\", \"lowrank_code\":\"%s\", \"lowrank_code_count\":%d, \"tag\":%d}",
-        escape(pMetadata->Artist()).c_str(), 
-        escape(pMetadata->Album()).c_str(), 
-        escape(pMetadata->Title()).c_str(), 
-        escape(pMetadata->Genre()).c_str(),
-        pMetadata->Bitrate(),
-        pMetadata->SampleRate(),
-        pMetadata->Seconds(),
-        escape(filename).c_str(),
         numSamples,
         duration,
         start_offset,
@@ -163,11 +153,13 @@ char* json_string_for_file(char* filename, int start_offset, int duration, int t
 
 void *threaded_json_string_for_file(void *parm) {
     // pthread stub to invoke json_string_for_file
+    /* XXX - We're going to not do this because it doesn't build easily on
+             Windows.
     thread_parm_t *p = (thread_parm_t *)parm;
     char * output = json_string_for_file(p->filename, p->start_offset, p->duration, p->tag);
     p->output = output;
     // mark when we're done so the controlling thread can move on.
-    p->done = 1;
+    p->done = 1;*/
     return NULL;
 }
 
@@ -217,11 +209,12 @@ int main(int argc, char** argv) {
 //#ifdef __APPLE__
         fprintf(stderr, "no thread mode\n");
         // Threading doesn't work in windows yet.
-        for(int i=0;i<count;i++) {
+        /* XXX - More stuff we don't want to do.
+	for(int i=0;i<count;i++) {
             char* output = json_string_for_file((char*)files[i].c_str(), start_offset, duration, i);
             print_json_to_screen(output, count, i);
             free(output);
-        }
+        }*/
         return 1;
 #endif
 

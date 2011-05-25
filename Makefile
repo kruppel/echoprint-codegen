@@ -5,11 +5,17 @@ PLATFORM=`uname`
 ARCH=`uname -m`
 #OPTFLAGS=-g -O0
 OPTFLAGS=-O3
-CXXFLAGS=-Wall -I/usr/local/include/boost-1_35 -I/usr/local/include/taglib -fPIC $(OPTFLAGS)
+CXXFLAGS=-Wall -I/usr/local/include/boost_1_46_1 -fPIC $(OPTFLAGS)
 CFLAGS=-Wall -Ifft -fPIC $(OPTFLAGS)
 ifeq ($(UNAME),Darwin)
 	LDFLAGS=-L/usr/local/lib libtag-$(PLATFORM)-$(ARCH).a -lz -lpthread -framework Accelerate -framework vecLib $(OPTFLAGS)
-else
+endif
+
+ifeq ($(UNAME),MINGW32_NT-6.1)
+	LDFLAGS=-L/usr/local/lib $(OPTFLAGS)
+endif
+
+ifeq ($(UNAME),Linux)
 	LDFLAGS=-L/usr/local/lib libtag-$(PLATFORM)-$(ARCH).a -lz -lpthread $(OPTFLAGS)
 endif
 
@@ -26,7 +32,7 @@ MODULES_LIB = \
     fft/kiss_fft.o \
     fft/kiss_fftr.o \
     easyzlib.o
-MODULES = $(MODULES_LIB) Metadata.o
+MODULES = $(MODULES_LIB)
 
 main: $(MODULES) main.o
 	$(CXX) $(MODULES) $(LDFLAGS) main.o -o codegen.$(PLATFORM)-$(ARCH) 
@@ -35,7 +41,13 @@ ifeq ($(UNAME),Darwin)
 	libtool -dynamic -flat_namespace -install_name libcodegen.4.0.0.dylib -lSystem -compatibility_version 4.0 -macosx_version_min 10.6 \
 	    -current_version 4.0.0 -o libcodegen.4.0.0.dylib -undefined suppress \
 	    $(MODULES) -framework vecLib -framework Accelerate
-else
+endif
+
+ifeq ($(UNAME),MINGW32_NT-6.1)
+	$(CXX) -shared -fPIC -o codegen.dll $(MODULES_LIB)
+endif
+
+ifeq ($(UNAME),Linux)
 	$(CXX) -shared -fPIC -o libcodegen.$(PLATFORM)-$(ARCH).so $(MODULES_LIB) 
 endif
 
