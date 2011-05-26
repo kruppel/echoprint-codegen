@@ -68,6 +68,9 @@ endif
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
 clean:
-	rm -f *.o codegen.$(PLATFORM)-$(ARCH)
+	rm -f *.o ../codegen.$(PLATFORM)-$(ARCH)
 	rm -f fft/*.o
-
+	rm -f *.so
+ifeq ($(UNAME),Darwin)
+	rm -f *.dylib
+endif
