@@ -1,21 +1,23 @@
 //
-//  Copyright 2011 The Echo Nest. All rights reserved.
+//  echoprint-codegen
+//  Copyright 2011 The Echo Nest Corporation. All rights reserved.
 //
+
 
 
 #ifndef FINGERPRINT_H
 #define FINGERPRINT_H
 
 #include "Common.h"
-#include "Spectrogram.h"
+#include "SubbandAnalysis.h"
 #include "MatrixUtility.h"
 #include <vector>
 
 #define HASH_SEED 0x9ea5fa36
-#define QUANTIZE_DT_MS 3
-#define QUANTIZE_A_MS 23
+#define QUANTIZE_DT_S (256.0/11025.0)
+#define QUANTIZE_A_S (256.0/11025.0)
 #define HASH_BITMASK 0x000fffff
-#define STFT_A_BANDS 9
+#define SUBBANDS 8
 
 struct FPCode {
     FPCode() : frame(0), code(0) {}
@@ -30,12 +32,12 @@ class Fingerprint {
 public:
     uint quantized_time_for_frame_delta(uint frame_delta);
     uint quantized_time_for_frame_absolute(uint frame);
-    Fingerprint(Spectrogram* p16Spectrogram, int offset);
+    Fingerprint(SubbandAnalysis* pSubbandAnalysis, int offset);
     void Compute();
     uint adaptiveOnsets(int ttarg, matrix_u&out, uint*&onset_counter_for_band) ;
     std::vector<FPCode>& getCodes(){return _Codes;}
 protected:
-    Spectrogram *_p16Spectrogram;
+    SubbandAnalysis *_pSubbandAnalysis;
     int _Offset;
     std::vector<FPCode> _Codes;
 };

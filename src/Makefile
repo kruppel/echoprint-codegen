@@ -5,13 +5,13 @@ AR=ar
 PLATFORM=`uname`
 ARCH=`uname -m`
 #OPTFLAGS=-g -O0
-OPTFLAGS=-O3
+OPTFLAGS=-O3 -DBOOST_UBLAS_NDEBUG -DNDEBUG
 CXXFLAGS=-Wall -I/usr/local/include/boost_1_46_1 -fPIC $(OPTFLAGS)
-CFLAGS=-Wall -Ifft -fPIC $(OPTFLAGS)
+CFLAGS=-Wall -fPIC $(OPTFLAGS)
 ifeq ($(UNAME),Darwin)
 	CXXFLAGS+=-arch i386
 	CFLAGS+=-arch i386
-	LDFLAGS=-arch i386 -L/usr/local/lib -lpthread -framework Accelerate -framework vecLib $(OPTFLAGS)
+	LDFLAGS=-arch i386 -L/usr/local/lib -lz -lpthread $(OPTFLAGS)
 endif
 
 ifeq ($(UNAME),MINGW32_NT-6.1)
@@ -28,19 +28,14 @@ MODULES_LIB = \
     Base64.o \
     Codegen.o \
     Fingerprint.o \
-    FingerprintLowRank.o \
     MatrixUtility.o \
-    Spectrogram.o \
-    VectorUtility.o \
-    fft/kiss_fft.o \
-    fft/kiss_fftr.o \
-    easyzlib.o
+    SubbandAnalysis.o
 MODULES = $(MODULES_LIB)
 
 main: $(MODULES) main.o
-	$(CXX) $(MODULES) $(LDFLAGS) main.o -o codegen.$(PLATFORM)-$(ARCH)
+	$(CXX) $(MODULES) $(LDFLAGS) main.o -o ../codegen.$(PLATFORM)-$(ARCH)
 ifeq ($(UNAME),Darwin)
-	$(CXX) -arch i386 -shared -fPIC -o libcodegen.$(PLATFORM)-$(ARCH).so $(MODULES_LIB) -framework Accelerate -framework vecLib
+	$(CXX) -arch i386 -shared -fPIC -o libcodegen.$(PLATFORM)-$(ARCH).so $(MODULES_LIB) -lz -framework Accelerate -framework vecLib
 	libtool -dynamic -flat_namespace -install_name libcodegen.4.0.0.dylib -lSystem -compatibility_version 4.0 -macosx_version_min 10.6 \
 	    -current_version 4.0.0 -o libcodegen.4.0.0.dylib -undefined suppress \
 	    $(MODULES) -framework vecLib -framework Accelerate
@@ -68,8 +63,7 @@ endif
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
 clean:
-	rm -f *.o ../codegen.$(PLATFORM)-$(ARCH)
-	rm -f fft/*.o
+	rm -f *.o ../codegen.$(UNAME)-$(ARCH)
 	rm -f *.so
 ifeq ($(UNAME),Darwin)
 	rm -f *.dylib

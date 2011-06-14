@@ -1,17 +1,12 @@
 //
-//  Copyright 2011 The Echo Nest. All rights reserved.
+//  echoprint-codegen
+//  Copyright 2011 The Echo Nest Corporation. All rights reserved.
 //
+
 
 #include "Fingerprint.h"
 #include "Params.h"
-
-
-#ifdef __APPLE__
-// iOS debugging
-extern "C" {
-	extern void NSLog(CFStringRef format, ...); 
-}
-#endif
+#include <string.h>
 
 unsigned int MurmurHash2 ( const void * key, int len, unsigned int seed ) {
     // MurmurHash2, by Austin Appleby http://sites.google.com/site/murmurhash/
@@ -49,41 +44,50 @@ unsigned int MurmurHash2 ( const void * key, int len, unsigned int seed ) {
 	return h;
 }
 
-Fingerprint::Fingerprint(Spectrogram* p16Spectrogram, int offset) 
-    : _p16Spectrogram(p16Spectrogram), _Offset(offset) { }
+Fingerprint::Fingerprint(SubbandAnalysis* pSubbandAnalysis, int offset) 
+    : _pSubbandAnalysis(pSubbandAnalysis), _Offset(offset) { }
 
 
 uint Fingerprint::adaptiveOnsets(int ttarg, matrix_u&out, uint*&onset_counter_for_band) {
     //  E is a sgram-like matrix of energies.
     const float *pE;
     int bands, frames, i, j, k;
-    int deadtime = 32;
-    double H[STFT_A_BANDS],taus[STFT_A_BANDS], N[STFT_A_BANDS];
-    int contact[STFT_A_BANDS], lcontact[STFT_A_BANDS], tsince[STFT_A_BANDS];
-    double overfact = 1.05;  /* threshold rel. to actual peak */
+    int deadtime = 128;
+    double H[SUBBANDS],taus[SUBBANDS], N[SUBBANDS];
+    int contact[SUBBANDS], lcontact[SUBBANDS], tsince[SUBBANDS];
+    double overfact = 1.1;  /* threshold rel. to actual peak */
     uint onset_counter = 0;
 
-    // Do the blocking
-    matrix_f E = _p16Spectrogram->getMatrix();
-    matrix_f Eb = matrix_f(E.size1()/4, E.size2());
-    for(size_t x=0;x<Eb.size1();x++) {
-        for(size_t y=0;y<Eb.size2();y++) {
-            Eb(x,y) = 0;
-            // compute the rms of each block
-            for(k=0;k<4;k++)
-                Eb(x,y) = Eb(x,y) + (E((x*4)+k, y) * E((x*4)+k, y));
-            Eb(x,y) = sqrtf(Eb(x,y) / 1.0); // i used to divide here / 4 (b/c the M in RMS) but dpwe doesn't
+    matrix_f E = _pSubbandAnalysis->getMatrix();
+
+    // Take successive stretches of 8 subband samples and sum their energy under a hann window, then hop by 4 samples (50% window overlap).
+    int hop = 4;
+    int nsm = 8;
+    float ham[nsm];
+    for(int i = 0 ; i != nsm ; i++)
+        ham[i] = .5 - .5*cos( (2.*M_PI/(nsm-1))*i);
+
+    int nc =  floor((float)E.size2()/(float)hop)-(floor((float)nsm/(float)hop)-1);
+    matrix_f Eb = matrix_f(nc, 8);
+    MatrixUtility::clear(Eb);
+    for(i=0;i<nc;i++) {
+        for(j=0;j<SUBBANDS;j++) {
+            for(k=0;k<nsm;k++)  Eb(i,j) = Eb(i,j) + ( E(j,(i*hop)+k) * ham[k]);
+            Eb(i,j) = sqrtf(Eb(i,j));
         }
     }
     
-    frames = Eb.size1(); // 20K
-    bands = Eb.size2(); // 9
+    frames = Eb.size1(); 
+    bands = Eb.size2(); 
     pE = &Eb.data()[0];
 
+    out = matrix_u(SUBBANDS, frames); 
+    onset_counter_for_band = new uint[SUBBANDS];
 
-    out = matrix_u(STFT_A_BANDS, frames); 
-
-    onset_counter_for_band = new uint[STFT_A_BANDS];
+    double bn[] = {0.1883, 0.4230, 0.3392}; /* preemph filter */   // new
+    int nbn = 3;
+    double a1 = 0.98;
+    double Y0[SUBBANDS];
 
     for (j = 0; j < bands; ++j) {
         onset_counter_for_band[j] = 0;
@@ -93,12 +97,25 @@ uint Fingerprint::adaptiveOnsets(int ttarg, matrix_u&out, uint*&onset_counter_fo
         contact[j] = 0;
         lcontact[j] = 0;
         tsince[j] = 0;
+        Y0[j] = 0; 
     }
 
     for (i = 0; i < frames; ++i) {
-        for (j = 0; j < STFT_A_BANDS; ++j) { 
+        for (j = 0; j < SUBBANDS; ++j) { 
 
-    	    contact[j] = (pE[j] > H[j])? 1 : 0;
+            double xn = 0;  
+            /* calculate the filter -  FIR part */
+            if (i >= 2*nbn) {
+                for (int k = 0; k < nbn; ++k) {
+                    xn += bn[k]*(pE[j-SUBBANDS*k] - pE[j-SUBBANDS*(2*nbn-k)]);
+                }
+            }
+            /* IIR part */
+            xn = xn + a1*Y0[j];
+            /* remember the last filtered level */
+            Y0[j] = xn;
+
+            contact[j] = (xn > H[j])? 1 : 0;
 
     	    if (contact[j] == 1 && lcontact[j] == 0) {
     	        /* attach - record the threshold level unless we have one */
@@ -108,7 +125,7 @@ uint Fingerprint::adaptiveOnsets(int ttarg, matrix_u&out, uint*&onset_counter_fo
     		}
     		if (contact[j] == 1) {
     		    /* update with new threshold */
-    		    H[j] = pE[j] * overfact;
+                H[j] = xn * overfact;
     		} else {
     		    /* apply decays */
     		    H[j] = H[j] * exp(-1.0/(double)taus[j]);
@@ -149,11 +166,12 @@ uint Fingerprint::adaptiveOnsets(int ttarg, matrix_u&out, uint*&onset_counter_fo
 // dan is going to beat me if i call this "decimated_time_for_frame" like i want to
 uint Fingerprint::quantized_time_for_frame_delta(uint frame_delta) {
     double time_for_frame_delta = (double)frame_delta / ((double)Params::AudioStreamInput::SamplingRate / 32.0);
-    return (int)floor((time_for_frame_delta * 1000.0) /  (float)QUANTIZE_DT_MS) * QUANTIZE_DT_MS;
+    return ((int)floor((time_for_frame_delta * 1000.0) / (float)QUANTIZE_DT_S) * QUANTIZE_DT_S) / floor(QUANTIZE_DT_S*1000.0);
 }
+
 uint Fingerprint::quantized_time_for_frame_absolute(uint frame) {
     double time_for_frame = _Offset + (double)frame / ((double)Params::AudioStreamInput::SamplingRate / 32.0);
-    return (int)floor((time_for_frame * 1000.0) /  (float)QUANTIZE_A_MS) * QUANTIZE_A_MS;
+    return ((int)rint((time_for_frame * 1000.0) /  (float)QUANTIZE_A_S) * QUANTIZE_A_S) / floor(QUANTIZE_A_S*1000.0);
 }
 
 
@@ -161,19 +179,17 @@ void Fingerprint::Compute() {
     uint actual_codes = 0;
     unsigned char hash_material[5];
     for(uint i=0;i<5;i++) hash_material[i] = 0;
-
     uint * onset_counter_for_band;
     matrix_u out;
-    uint onset_count = adaptiveOnsets(86, out, onset_counter_for_band);
+    uint onset_count = adaptiveOnsets(345, out, onset_counter_for_band);
     _Codes.resize(onset_count*6);
 
-    for(unsigned char band=0;band<STFT_A_BANDS;band++) { 
-        if(onset_counter_for_band[band]>0) {
-            for(uint onset=0;onset<onset_counter_for_band[band]-5;onset++) {
+    for(unsigned char band=0;band<SUBBANDS;band++) { 
+        if (onset_counter_for_band[band]>4) {
+            for(uint onset=0;onset<onset_counter_for_band[band]-4;onset++) {
                 // What time was this onset at?
                 uint time_for_onset_ms_quantized = quantized_time_for_frame_absolute(out(band,onset));
-
-                // Build up 6 pairs of deltas from the successive onset times
+            
                 uint p[2][6];
                 p[0][0] = (out(band,onset+1) - out(band,onset));
                 p[1][0] = (out(band,onset+2) - out(band,onset+1));
@@ -187,10 +203,10 @@ void Fingerprint::Compute() {
                 p[1][4] = (out(band,onset+4) - out(band,onset+2));
                 p[0][5] = (out(band,onset+3) - out(band,onset));
                 p[1][5] = (out(band,onset+4) - out(band,onset+3));
-            
+
                 // For each pair emit a code
                 for(uint k=0;k<6;k++) {
-                    // Quantize the time deltas to 3ms
+                    // Quantize the time deltas to 23ms
                     short time_delta0 = (short)quantized_time_for_frame_delta(p[0][k]);
                     short time_delta1 = (short)quantized_time_for_frame_delta(p[1][k]);
                     // Create a key from the time deltas and the band index
@@ -198,6 +214,7 @@ void Fingerprint::Compute() {
                     memcpy(hash_material+2, (const void*)&time_delta1, 2);
                     memcpy(hash_material+4, (const void*)&band, 1);
                     uint hashed_code = MurmurHash2(&hash_material, 5, HASH_SEED) & HASH_BITMASK;
+
                     // Set the code alongside the time of onset
                     _Codes[actual_codes++] = FPCode(time_for_onset_ms_quantized, hashed_code);
                     //fprintf(stderr, "whee %d,%d: [%d, %d] (%d, %d), %d = %u at %d\n", actual_codes, k, time_delta0, time_delta1, p[0][k], p[1][k], band, hashed_code, time_for_onset_ms_quantized);

@@ -1,13 +1,14 @@
 //
-//  Copyright 2011 The Echo Nest. All rights reserved.
+//  echoprint-codegen
+//  Copyright 2011 The Echo Nest Corporation. All rights reserved.
 //
+
 
 
 #ifndef PARAMS_H
 #define PARAMS_H
 
 #include "Common.h"
-#include "VectorUtility.h"
 
 namespace Params {
     namespace AudioStreamInput {

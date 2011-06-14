@@ -1,6 +1,8 @@
 //
-//  Copyright 2011 The Echo Nest. All rights reserved.
+//  echoprint-codegen
+//  Copyright 2011 The Echo Nest Corporation. All rights reserved.
 //
+
 
 #include <stdio.h>
 #include <string.h>
@@ -123,28 +125,26 @@ char* json_string_for_file(char* filename, int start_offset, int duration, int t
     t1 = now() - t1;
 
     double t2 = now();
-    auto_ptr<Codegen> pCodegen(new Codegen(pAudio->getSamples(), numSamples, start_offset, true, false));    
+    auto_ptr<Codegen> pCodegen(new Codegen(pAudio->getSamples(), numSamples, start_offset));    
     t2 = now() - t2;
 
     // Get the ID3 tag information.
     //auto_ptr<Metadata> pMetadata(new Metadata(filename));
 
     // preamble + codelen
-    char* output = (char*) malloc(sizeof(char)*(16384 + strlen(pCodegen->getFullCodeString().c_str()) + strlen(pCodegen->getLowRankCodeString().c_str()) ));
+    char* output = (char*) malloc(sizeof(char)*(16384 + strlen(pCodegen->getCodeString().c_str()) ));
     
     sprintf(output,"{\"samples_decoded\":%d, \"given_duration\":%d,"
                     " \"start_offset\":%d, \"version\":%2.2f, \"codegen_time\":%2.6f, \"decode_time\":%2.6f}, \"code_count\":%d,"
-                    " \"code\":\"%s\", \"lowrank_code\":\"%s\", \"lowrank_code_count\":%d, \"tag\":%d}",
+                    " \"code\":\"%s\", \"tag\":%d}",
         numSamples,
         duration,
         start_offset,
         pCodegen->getVersion(),
         t2,
         t1,
-        pCodegen->getFullNumCodes(),
-        pCodegen->getFullCodeString().c_str(),
-        pCodegen->getLowRankCodeString().c_str(),
-        pCodegen->getLowRankNumCodes(),        
+        pCodegen->getNumCodes(),
+        pCodegen->getCodeString().c_str(),
         tag
     );
     return output;
@@ -277,14 +277,15 @@ int main(int argc, char** argv) {
         free(t);
         free(parm);
         free(attr);
-        return 1;
+        return 0;
     }
     catch(std::runtime_error& ex) {
         fprintf(stderr, "%s\n", ex.what());
-        return -1;
+        return 1;
     }
     catch(...) {
         fprintf(stderr, "Unknown failure occurred\n");
+        return 2;
     }
 
 }
