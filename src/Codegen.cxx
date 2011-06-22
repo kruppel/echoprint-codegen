@@ -10,30 +10,33 @@
 #include "Codegen.h"
 #include "AudioBufferInput.h"
 #include "Fingerprint.h"
+#include "Whitening.h"
 
 #include "Base64.h"
 #include <zlib.h>
 
-Fingerprint* Codegen::computeFingerprint(SubbandAnalysis *pSubbandAnalysis, int start_offset) {
-    Fingerprint *pFingerprint = new Fingerprint(pSubbandAnalysis, start_offset);
-    pFingerprint->Compute();
-    return pFingerprint;
-}
-
 Codegen::Codegen(const float* pcm, uint numSamples, int start_offset) {
     if (Params::AudioStreamInput::MaxSamples < (uint)numSamples)
         throw std::runtime_error("File was too big\n");
-        
+    
+    Whitening *pWhitening = new Whitening(pcm, numSamples);
+    pWhitening->Compute();
+    
     AudioBufferInput *pAudio = new AudioBufferInput();
-    pAudio->SetBuffer(pcm, numSamples);
-    Fingerprint * pFingerprint;
+    pAudio->SetBuffer(pWhitening->getWhitenedSamples(), pWhitening->getNumSamples());
+
     SubbandAnalysis *pSubbandAnalysis = new SubbandAnalysis(pAudio);
     pSubbandAnalysis->Compute();
-    pFingerprint = computeFingerprint(pSubbandAnalysis, start_offset);
+
+    Fingerprint *pFingerprint = new Fingerprint(pSubbandAnalysis, start_offset);
+    pFingerprint->Compute();
+    
     _CodeString = createCodeString(pFingerprint->getCodes());
     _NumCodes = pFingerprint->getCodes().size();
+
     delete pFingerprint;
     delete pSubbandAnalysis;
+    delete pWhitening;
     delete pAudio;
 }
 

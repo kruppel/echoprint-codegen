@@ -30,14 +30,15 @@ MODULES_LIB = \
     Fingerprint.o \
     MatrixUtility.o \
     SubbandAnalysis.o
+    Whitening.o
 MODULES = $(MODULES_LIB)
 
 main: $(MODULES) main.o
-	$(CXX) $(MODULES) $(LDFLAGS) main.o -o ../codegen.$(PLATFORM)-$(ARCH)
+	$(CXX) $(MODULES) $(LDFLAGS) main.o -o ../echoprint-codegen
+	$(CXX) -shared -fPIC -o libcodegen.so $(MODULES_LIB) -lz -arch i386
 ifeq ($(UNAME),Darwin)
-	$(CXX) -arch i386 -shared -fPIC -o libcodegen.$(PLATFORM)-$(ARCH).so $(MODULES_LIB) -lz -framework Accelerate -framework vecLib
-	libtool -dynamic -flat_namespace -install_name libcodegen.4.0.0.dylib -lSystem -compatibility_version 4.0 -macosx_version_min 10.6 \
-	    -current_version 4.0.0 -o libcodegen.4.0.0.dylib -undefined suppress \
+	libtool -dynamic -flat_namespace -install_name libcodegen.4.1.1.dylib -lSystem -compatibility_version 4.1 -macosx_version_min 10.6 \
+	    -current_version 4.1.1 -o libcodegen.4.1.1.dylib -undefined suppress \
 	    $(MODULES) -framework vecLib -framework Accelerate
 endif
 
@@ -63,7 +64,7 @@ endif
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
 clean:
-	rm -f *.o ../codegen.$(UNAME)-$(ARCH)
+	rm -f *.o ../echoprint-codegen
 	rm -f *.so
 ifeq ($(UNAME),Darwin)
 	rm -f *.dylib
